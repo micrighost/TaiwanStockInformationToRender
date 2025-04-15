@@ -244,29 +244,29 @@ if __name__ == "__main__":
         output = []
 
         # 加入第一條訊息，表示開始檢查資料庫
-        output.append("正在幫你檢查資料庫，請稍後。")
+        output.append("正在幫你檢查資料庫，這會花很久，請稍後。")
         
         # 呼叫自訂函式 check_database_is_null() 判斷資料庫是否為空
         if check_database_is_null():
             # 如果資料庫是空的，加入提示訊息
-            output.append("資料庫是空的，開始寫入資料庫，這會花很久，請稍後。")
+            output.append("資料庫是空的。")
             # 呼叫自訂函式 write_db_tables() 寫入資料庫
             write_db_tables()
             # 寫入完成後加入提示訊息
-            output.append("資料庫已寫完。")
+            output.append("但我剛剛已經寫入資料庫完成。")
 
         # 呼叫自訂函式 monthly_inspection() 判斷是否超過一個月需要更新
         if monthly_inspection():
             # 如果超過一個月，加入提示訊息
-            output.append("上次更新時間超過一個月，開始刪除舊資料。")
+            output.append("上次更新時間超過一個月。")
             # 呼叫 drop_db_tables 物件的 drop_all_tables() 方法刪除舊資料
             drop_db_tables.drop_all_tables()
             # 刪除完成後加入提示訊息
-            output.append("資料刪除完成，開始寫入新資料，這會花很久，請稍後。")
+            output.append("過期資料刪除完成。")
             # 再次呼叫 write_db_tables() 寫入新資料
             write_db_tables()
             # 寫入完成後加入提示訊息
-            output.append("資料庫已寫完。")
+            output.append("已經將資料庫重新寫入完成。")
 
         # 最後加入完成訊息，表示資料庫狀態正常
         output.append("資料庫一切正常，可以關閉視窗了！")
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
     
 
-
+    # drop_db_tables.drop_all_tables()
 
 
 
