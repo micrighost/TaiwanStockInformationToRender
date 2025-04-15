@@ -2,80 +2,89 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8" />
-    <title>資料庫檢查</title>
-    <!-- 引入 jQuery 函式庫，用於簡化 DOM 操作和 AJAX 請求 -->
+    <title>資料庫管理</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <h1>資料庫檢查</h1>
+    <h1>資料庫管理</h1>
 
     <!-- 檢查資料庫按鈕 -->
     <button id="checkButton">檢查資料庫</button>
 
-    <!-- 新增刪除資料庫按鈕 -->
+    <!-- 更新資料庫按鈕 -->
+    <button id="updateButton">更新資料庫</button>
+
+    <!-- 刪除資料庫按鈕（可選） -->
     <button id="deleteButton">刪除資料庫</button>
 
-    <!-- 顯示訊息的容器 -->
     <div id="output"></div>
 
     <script>
         $(document).ready(function() {
-            // 當 DOM 載入完成後執行，確保所有元素都已載入
+            // 檢查資料庫按鈕事件
             $('#checkButton').click(function() {
-                // 當 "檢查資料庫" 按鈕被點擊時執行
-                
-                // 禁用 "檢查資料庫" 按鈕，避免重複點擊
-                $('#checkButton').prop('disabled', true);
-                // 禁用 "刪除資料庫" 按鈕，避免在檢查時誤刪
-                $('#deleteButton').prop('disabled', true);
-                // 顯示提示訊息，告知使用者正在執行檢查
-                $('#output').html('<p>正在幫你檢查資料庫，請稍後...</p>');
+                // 點擊 "檢查資料庫" 按鈕時執行
+                disableButtons(true); // 禁用所有按鈕，防止重複操作
+                $('#output').html('<p>正在檢查資料庫，請稍後...</p>'); // 顯示提示訊息
 
-                // 使用 $.post() 方法發送異步 POST 請求到 /check_database 路由
                 $.post('/check_database', function(data) {
-                    // 後端回傳後，將所有訊息顯示在 #output 容器中
-                    // 使用 map() 方法將 data.messages 陣列轉換為 HTML 字串
-                    // 使用 join() 方法將 HTML 字串連接起來，然後更新 #output 容器
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
+                    // 發送 POST 請求到 '/check_database'，並處理回傳資料
+                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
                 }).always(function() {
-                    // 無論請求成功或失敗，都會執行此區塊
-                    // 恢復 "檢查資料庫" 按鈕的可用性
-                    $('#checkButton').prop('disabled', false);
-                    // 恢復 "刪除資料庫" 按鈕的可用性
-                    $('#deleteButton').prop('disabled', false);
+                    // 無論請求成功或失敗，都執行此函式
+                    disableButtons(false); // 恢復按鈕可用
+                });
+            });
+
+            // 更新資料庫按鈕事件
+            $('#updateButton').click(function() {
+                // 點擊 "更新資料庫" 按鈕時執行
+
+                // 顯示確認視窗，詢問使用者是否確定更新
+                if (!confirm("確定要更新資料庫嗎？")) {
+                    return; // 如果使用者取消，則不執行後續操作
+                }
+
+                disableButtons(true); // 禁用所有按鈕，防止重複操作
+                $('#output').html('<p>開始重構資料庫，這會花很久，請稍後...</p>'); // 顯示提示訊息
+
+                $.post('/update_database', function(data) {
+                    // 發送 POST 請求到 '/update_database'，並處理回傳資料
+                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
+                }).always(function() {
+                    // 無論請求成功或失敗，都執行此函式
+                    disableButtons(false); // 恢復按鈕可用
                 });
             });
 
             // 刪除資料庫按鈕事件
             $('#deleteButton').click(function() {
-                // 當 "刪除資料庫" 按鈕被點擊時執行
+                // 點擊 "刪除資料庫" 按鈕時執行
 
                 // 顯示確認視窗，詢問使用者是否確定刪除
                 if (!confirm("確定要刪除資料庫嗎？此動作無法復原！")) {
-                    return; // 使用者取消刪除，不執行後續動作
+                    return; // 如果使用者取消，則不執行後續操作
                 }
 
-                // 禁用 "檢查資料庫" 按鈕，避免在刪除時檢查
-                $('#checkButton').prop('disabled', true);
-                // 禁用 "刪除資料庫" 按鈕，避免重複點擊
-                $('#deleteButton').prop('disabled', true);
-                // 顯示提示訊息，告知使用者正在執行刪除
-                $('#output').html('<p>正在刪除資料庫，請稍後...</p>');
+                disableButtons(true); // 禁用所有按鈕，防止重複操作
+                $('#output').html('<p>正在刪除資料庫，請稍後...</p>'); // 顯示提示訊息
 
-                // 使用 $.post() 方法發送異步 POST 請求到 /delete_database 路由
                 $.post('/delete_database', function(data) {
-                    // 後端回傳後，將所有訊息顯示在 #output 容器中
-                    // 使用 map() 方法將 data.messages 陣列轉換為 HTML 字串
-                    // 使用 join() 方法將 HTML 字串連接起來，然後更新 #output 容器
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
+                    // 發送 POST 請求到 '/delete_database'，並處理回傳資料
+                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
                 }).always(function() {
-                    // 無論請求成功或失敗，都會執行此區塊
-                    // 恢復 "檢查資料庫" 按鈕的可用性
-                    $('#checkButton').prop('disabled', false);
-                    // 恢復 "刪除資料庫" 按鈕的可用性
-                    $('#deleteButton').prop('disabled', false);
+                    // 無論請求成功或失敗，都執行此函式
+                    disableButtons(false); // 恢復按鈕可用
                 });
             });
+
+            // 按鈕啟用/禁用函式
+            function disableButtons(disable) {
+                // 根據传入的 disable 參數，禁用或啟用所有按鈕
+                $('#checkButton').prop('disabled', disable); // 禁用或啟用 "檢查資料庫" 按鈕
+                $('#updateButton').prop('disabled', disable); // 禁用或啟用 "更新資料庫" 按鈕
+                $('#deleteButton').prop('disabled', disable); // 禁用或啟用 "刪除資料庫" 按鈕
+            }
         });
     </script>
 </body>

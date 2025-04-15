@@ -127,7 +127,7 @@ def save_stock_data_to_postgresql(data, ticker):
 def monthly_inspection():
     """這方法會比對資料庫裡的2330的最後一筆資料的日期，如果比今天的日期還要少一個月以上，就回傳True"""
     # 以護國神山為基礎來查詢日期，如果它沒了我看台灣也沉了
-    ticker = '2330.TW'
+    ticker = '0015.TW'
     df = read_db_tables.fetch_stock_data(ticker)
     # 確保日期列是日期時間格式
     df['date'] = pd.to_datetime(df['date'])
@@ -153,9 +153,9 @@ def monthly_inspection():
     
     # 日期差30天以上，就回傳真
     if difference.days > 30:
-        return True
+        return True,difference
     else:
-        return False
+        return False,difference
 
 
 
@@ -198,106 +198,144 @@ def check_database_is_null():
 
 
 def write_db_tables():
-    stock_codes = []  # 初始化有效股票代號列表
-    
-    # 檢查從 0 到 9999 的數字
-    for i in range(0, 10000):
-        ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
-        if is_stock_code(ticker):  # 檢查是否為有效的股票代號
-            stock_codes.append(ticker)  # 若有效，則加入列表
+ 
+    try:
+        stock_codes = []  # 初始化有效股票代號列表
 
-    # 將有效的股票代號存成 CSV 檔案
-    with open('valid_stock_codes.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)  # 創建 CSV 寫入器
-        writer.writerow(['Stock Code'])  # 寫入表頭
-        for code in stock_codes:  # 遍歷有效的股票代號
-            writer.writerow([code])  # 寫入每個代號
+        # 檢查從 0 到 9999 的數字
+        for i in range(0, 20):
+            ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
+            if is_stock_code(ticker):  # 檢查是否為有效的股票代號
+                stock_codes.append(ticker)  # 若有效，則加入列表
 
-    print("有效的台股股票代號已儲存到 valid_stock_codes.csv")  # 打印成功消息
+        # 將有效的股票代號存成 CSV 檔案
+        with open('valid_stock_codes.csv', 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)  # 創建 CSV 寫入器
+            writer.writerow(['Stock Code'])  # 寫入表頭
+            for code in stock_codes:  # 遍歷有效的股票代號
+                writer.writerow([code])  # 寫入每個代號
 
-    # 儲存股票代號到資料庫
-    save_stock_codes_to_postgresql(stock_codes)
+        print("有效的台股股票代號已儲存到 valid_stock_codes.csv")  # 打印成功消息
 
-    # 抓取並儲存每個有效股票的交易資料
-    for code in stock_codes:
-        stock_data = fetch_stock_data(code)  # 抓取股票的交易資料
-        save_stock_data_to_postgresql(stock_data, code)  # 儲存資料到 PostgreSQL
+        # 儲存股票代號到資料庫
+        save_stock_codes_to_postgresql(stock_codes)
+
+        # 抓取並儲存每個有效股票的交易資料
+        for code in stock_codes:
+            stock_data = fetch_stock_data(code)  # 抓取股票的交易資料
+            save_stock_data_to_postgresql(stock_data, code)  # 儲存資料到 PostgreSQL
+
+    finally:
+        return True
+
+
+
+
+import requests
+import threading
+
+# 建立一個 threading.Event 物件，用來控制是否停止迴圈
+stop_event = threading.Event()
+
+def ping_localhost():
+    # 要 ping 的本地端 API URL
+    url = 'http://127.0.0.1:5000'
+    print("開始每10分鐘 ping 一次本地端 API")
+
+    # 持續執行迴圈，直到 stop_event 被設定（停止）
+    while not stop_event.is_set():
+        try:
+            # 發送 POST 請求到指定 URL
+            response = requests.post(url)
+            # 請求成功，印出狀態碼
+            print(f"Ping 成功，狀態碼：{response.status_code}")
+        except Exception as e:
+            # 請求失敗，印出錯誤訊息
+            print(f"Ping 失敗：{e}")
+
+        # 印出休眠提示
+        print("休眠10分鐘...")
+        # 等待 600 秒（10 分鐘），或在此期間如果 stop_event 被設定則提前結束等待
+        stop_event.wait(600)
+
 
 
 if __name__ == "__main__":
-
-
+    
     from flask import Flask, render_template, jsonify
+    import threading
 
     # 建立 Flask 應用程式實例
     app = Flask(__name__)
 
-    # 定義首頁路由，使用 GET 方法預設
+    # 首頁路由，使用 GET 方法，回傳渲染後的 index.html 頁面
     @app.route('/')
     def home():
-        # 回傳渲染後的 index.html 模板，作為首頁
         return render_template('index.html')
 
-    # 定義 /check_database 路由，限定只接受 POST 請求
+    # 檢查資料庫狀態的 API，限定只接受 POST 請求
     @app.route('/check_database', methods=['POST'])
     def check_database():
-        # 建立一個空的列表，用來存放要回傳給前端的訊息
-        output = []
+        output = []  # 建立訊息列表，用來存放回傳給前端的訊息
+        output.append("正在檢查資料庫，請稍後...")  # 加入提示訊息
 
-        # 加入第一條訊息，表示開始檢查資料庫
-        output.append("正在幫你檢查資料庫，這會花很久，請稍後。")
-        
-        # 呼叫自訂函式 check_database_is_null() 判斷資料庫是否為空
+        # 呼叫自訂函式判斷資料庫是否為空
         if check_database_is_null():
-            # 如果資料庫是空的，加入提示訊息
             output.append("資料庫是空的。")
-            # 呼叫自訂函式 write_db_tables() 寫入資料庫
-            write_db_tables()
-            # 寫入完成後加入提示訊息
-            output.append("但我剛剛已經寫入資料庫完成。")
+            # 回傳 JSON 格式的訊息給前端
+            return jsonify({"messages": output})
 
-        # 呼叫自訂函式 monthly_inspection() 判斷是否超過一個月需要更新
+        # 呼叫自訂函式判斷是否超過一個月需要更新
         if monthly_inspection():
-            # 如果超過一個月，加入提示訊息
-            output.append("上次更新時間超過一個月。")
-            # 呼叫 drop_db_tables 物件的 drop_all_tables() 方法刪除舊資料
-            drop_db_tables.drop_all_tables()
-            # 刪除完成後加入提示訊息
-            output.append("過期資料刪除完成。")
-            # 再次呼叫 write_db_tables() 寫入新資料
-            write_db_tables()
-            # 寫入完成後加入提示訊息
-            output.append("已經將資料庫重新寫入完成。")
+            output.append("距離上次更新時間:")
+            # monthly_inspection() 回傳兩個值，第二個是天數差
+            _, difference_days = monthly_inspection()
+            output.append(str(difference_days))  # 加入天數差訊息
+            output.append("資料庫狀態檢查完成。")
+            return jsonify({"messages": output})
 
-        # 最後加入完成訊息，表示資料庫狀態正常
-        output.append("資料庫一切正常，可以關閉視窗了！")
-        
-        # 使用 jsonify 將訊息列表包裝成 JSON 格式回傳給前端
+    # 更新資料庫的 API，限定只接受 POST 請求
+    @app.route('/update_database', methods=['POST'])
+    def update_database():
+        output = []  # 建立訊息列表
+        output.append("開始重構資料庫，這會花很久，請稍後...")  # 提示開始更新
+
+        # 呼叫自訂物件方法刪除舊資料
+        drop_db_tables.drop_all_tables()
+        output.append("舊資料刪除完成。")
+
+        # 啟動 ping_localhost 函式的背景執行緒，持續 ping 本地 API 保持活躍
+        thread = threading.Thread(target=ping_localhost)
+        thread.start()
+
+        # 呼叫自訂函式寫入新資料
+        write_db_tables()
+
+        # 寫入完成後，設定事件停止 ping
+        stop_event.set()
+
+        output.append("已寫入新資料完成。")
+        output.append("資料庫更新作業結束。")
+
+        # 回傳 JSON 格式的訊息給前端
         return jsonify({"messages": output})
 
-
-    # 定義一個路由，當前端以 POST 方法請求 /delete_database 時會觸發此函式
+    # 刪除資料庫的 API，限定只接受 POST 請求
     @app.route('/delete_database', methods=['POST'])
     def delete_database():
-        # 建立一個空的列表，用來存放要回傳給前端的訊息
-        output = []
+        output = []  # 建立訊息列表
+        output.append("正在刪除資料庫，請稍後...")  # 提示開始刪除
 
-        # 加入第一條訊息，告知使用者刪除動作已開始
-        output.append("正在刪除資料庫，請稍後...")
-
-        # 執行刪除資料庫的動作，這裡呼叫 drop_db_tables 物件的 drop_all_tables() 方法
+        # 呼叫自訂物件方法刪除所有資料表
         drop_db_tables.drop_all_tables()
-
-        # 刪除完成後，加入成功訊息
         output.append("資料庫已成功刪除。")
 
-        # 使用 jsonify 將訊息列表包裝成 JSON 格式回傳給前端
+        # 回傳 JSON 格式的訊息給前端
         return jsonify({"messages": output})
 
+    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠    
+    app.run(host='0.0.0.0', port=5000)
 
-    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠
-    if __name__ == '__main__':
-        app.run(host='0.0.0.0', port=5000)
     
 
 
