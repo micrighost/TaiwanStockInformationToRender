@@ -201,7 +201,7 @@ def write_db_tables():
     stock_codes = []  # 初始化有效股票代號列表
     
     # 檢查從 0 到 9999 的數字
-    for i in range(0, 20):
+    for i in range(0, 10000):
         ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
         if is_stock_code(ticker):  # 檢查是否為有效的股票代號
             stock_codes.append(ticker)  # 若有效，則加入列表
@@ -278,7 +278,6 @@ if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
     
 
-    # drop_db_tables.drop_all_tables()
 
 
 
