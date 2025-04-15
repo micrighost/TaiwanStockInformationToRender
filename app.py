@@ -228,6 +228,7 @@ if __name__ == "__main__":
 
 
     from flask import Flask, render_template, jsonify
+
     # 建立 Flask 應用程式實例
     app = Flask(__name__)
 
@@ -274,10 +275,30 @@ if __name__ == "__main__":
         # 使用 jsonify 將訊息列表包裝成 JSON 格式回傳給前端
         return jsonify({"messages": output})
 
-    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠
-    app.run(host='0.0.0.0', port=5000)
-    
 
+    # 定義一個路由，當前端以 POST 方法請求 /delete_database 時會觸發此函式
+    @app.route('/delete_database', methods=['POST'])
+    def delete_database():
+        # 建立一個空的列表，用來存放要回傳給前端的訊息
+        output = []
+
+        # 加入第一條訊息，告知使用者刪除動作已開始
+        output.append("正在刪除資料庫，請稍後...")
+
+        # 執行刪除資料庫的動作，這裡呼叫 drop_db_tables 物件的 drop_all_tables() 方法
+        drop_db_tables.drop_all_tables()
+
+        # 刪除完成後，加入成功訊息
+        output.append("資料庫已成功刪除。")
+
+        # 使用 jsonify 將訊息列表包裝成 JSON 格式回傳給前端
+        return jsonify({"messages": output})
+
+
+    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=5000)
+    
 
 
 
