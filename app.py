@@ -252,7 +252,7 @@ def ping_localhost():
             print(f"POST 失敗：{e}")
 
         print("休眠10分鐘...")
-        stop_event.wait(60)
+        stop_event.wait(600)
 
 
 
