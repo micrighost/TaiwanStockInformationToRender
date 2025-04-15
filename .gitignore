@@ -1,0 +1,9 @@
+# environment
+.env
+
+# python虛擬環境
+.venv
+
+# python編譯緩存
+__pycache__
+
