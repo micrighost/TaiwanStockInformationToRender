@@ -127,7 +127,7 @@ def save_stock_data_to_postgresql(data, ticker):
 def monthly_inspection():
     """這方法會比對資料庫裡的2330的最後一筆資料的日期，如果比今天的日期還要少一個月以上，就回傳True"""
     # 以護國神山為基礎來查詢日期，如果它沒了我看台灣也沉了
-    ticker = '0015.TW'
+    ticker = '2330.TW'
     df = read_db_tables.fetch_stock_data(ticker)
     # 確保日期列是日期時間格式
     df['date'] = pd.to_datetime(df['date'])
@@ -203,7 +203,7 @@ def write_db_tables():
         stock_codes = []  # 初始化有效股票代號列表
 
         # 檢查從 0 到 9999 的數字
-        for i in range(0, 20):
+        for i in range(0, 10000):
             ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
             if is_stock_code(ticker):  # 檢查是否為有效的股票代號
                 stock_codes.append(ticker)  # 若有效，則加入列表
