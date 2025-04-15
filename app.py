@@ -238,25 +238,21 @@ import threading
 stop_event = threading.Event()
 
 def ping_localhost():
-    # 要 ping 的本地端 API URL
-    url = 'http://127.0.0.1:5000'
-    print("開始每10分鐘 ping 一次本地端 API")
+    url = 'http://127.0.0.1:5000/check_database'
+    print("開始每10分鐘 POST 請求檢查資料庫狀態 API")
 
-    # 持續執行迴圈，直到 stop_event 被設定（停止）
     while not stop_event.is_set():
         try:
-            # 發送 POST 請求到指定 URL
-            response = requests.post(url)
-            # 請求成功，印出狀態碼
-            print(f"Ping 成功，狀態碼：{response.status_code}")
+            # 這裡用 json 參數傳送 JSON 格式資料
+            payload = {"check": True}
+            response = requests.post(url, json=payload)
+            print(f"POST 成功，狀態碼：{response.status_code}")
+            print(f"回應內容：{response.json()}")
         except Exception as e:
-            # 請求失敗，印出錯誤訊息
-            print(f"Ping 失敗：{e}")
+            print(f"POST 失敗：{e}")
 
-        # 印出休眠提示
         print("休眠10分鐘...")
-        # 等待 600 秒（10 分鐘），或在此期間如果 stop_event 被設定則提前結束等待
-        stop_event.wait(600)
+        stop_event.wait(60)
 
 
 
