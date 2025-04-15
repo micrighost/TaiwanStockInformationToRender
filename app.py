@@ -201,7 +201,7 @@ def write_db_tables():
     stock_codes = []  # 初始化有效股票代號列表
     
     # 檢查從 0 到 9999 的數字
-    for i in range(0, 10000):
+    for i in range(0, 20):
         ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
         if is_stock_code(ticker):  # 檢查是否為有效的股票代號
             stock_codes.append(ticker)  # 若有效，則加入列表
@@ -226,38 +226,56 @@ def write_db_tables():
 
 if __name__ == "__main__":
 
-    # 把更新資料庫包成api，想要更新就打這api就可以了
-    from flask import Flask
+
+    from flask import Flask, render_template, jsonify
+    # 建立 Flask 應用程式實例
     app = Flask(__name__)
 
-    @app.route('/', methods=['GET'])
+    # 定義首頁路由，使用 GET 方法預設
+    @app.route('/')
     def home():
-        print("即將要開始幫你檢查資料庫")
+        # 回傳渲染後的 index.html 模板，作為首頁
+        return render_template('index.html')
 
-        # 先確定資料庫是否為空，如果是空的就先填充
+    # 定義 /check_database 路由，限定只接受 POST 請求
+    @app.route('/check_database', methods=['POST'])
+    def check_database():
+        # 建立一個空的列表，用來存放要回傳給前端的訊息
+        output = []
+
+        # 加入第一條訊息，表示開始檢查資料庫
+        output.append("正在幫你檢查資料庫，請稍後。")
+        
+        # 呼叫自訂函式 check_database_is_null() 判斷資料庫是否為空
         if check_database_is_null():
-            print("資料庫是空的，開始寫入資料庫。")
+            # 如果資料庫是空的，加入提示訊息
+            output.append("資料庫是空的，開始寫入資料庫，這會花很久，請稍後。")
+            # 呼叫自訂函式 write_db_tables() 寫入資料庫
             write_db_tables()
+            # 寫入完成後加入提示訊息
+            output.append("資料庫已寫完。")
 
-        # 檢查上次更新日期，超過一個月就更新資料
+        # 呼叫自訂函式 monthly_inspection() 判斷是否超過一個月需要更新
         if monthly_inspection():
-            # 刪除所有資料
+            # 如果超過一個月，加入提示訊息
+            output.append("上次更新時間超過一個月，開始刪除舊資料。")
+            # 呼叫 drop_db_tables 物件的 drop_all_tables() 方法刪除舊資料
             drop_db_tables.drop_all_tables()
-
-            # 建立資料庫
+            # 刪除完成後加入提示訊息
+            output.append("資料刪除完成，開始寫入新資料，這會花很久，請稍後。")
+            # 再次呼叫 write_db_tables() 寫入新資料
             write_db_tables()
-       
-        return "即將要開始幫你檢查資料庫"
+            # 寫入完成後加入提示訊息
+            output.append("資料庫已寫完。")
 
-    if __name__ == '__main__':
-        app.run(host='0.0.0.0', port=5000)
+        # 最後加入完成訊息，表示資料庫狀態正常
+        output.append("資料庫一切正常，可以關閉視窗了！")
+        
+        # 使用 jsonify 將訊息列表包裝成 JSON 格式回傳給前端
+        return jsonify({"messages": output})
 
-
-
-
-    
-
-
+    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠
+    app.run(host='0.0.0.0', port=5000)
     
 
 
