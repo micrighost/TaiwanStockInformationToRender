@@ -17,73 +17,112 @@
     <!-- 刪除資料庫按鈕（可選） -->
     <button id="deleteButton">刪除資料庫</button>
 
+    <!-- 進度條 -->
+    <div id="progress-container" style="display: none;">
+        <h3>更新進度</h3>
+        <div style="width: 80%; height: 20px; background: #f0f0f0;">
+            <div id="progress-bar" style="height: 100%; width: 0%; background: #4CAF50;"></div>
+        </div>
+        <p id="progress-text">0/5 批次</p>
+    </div>
+
+    <!-- 訊息輸出區 -->
     <div id="output"></div>
 
     <script>
         $(document).ready(function() {
             // 檢查資料庫按鈕事件
             $('#checkButton').click(function() {
-                // 點擊 "檢查資料庫" 按鈕時執行
-                disableButtons(true); // 禁用所有按鈕，防止重複操作
-                $('#output').html('<p>正在檢查資料庫，請稍後...</p>'); // 顯示提示訊息
+                disableButtons(true);
+                $('#output').html('<p>正在檢查資料庫，請稍後...</p>');
 
                 $.post('/check_database', function(data) {
-                    // 發送 POST 請求到 '/check_database'，並處理回傳資料
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
+                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
                 }).always(function() {
-                    // 無論請求成功或失敗，都執行此函式
-                    disableButtons(false); // 恢復按鈕可用
+                    disableButtons(false);
                 });
             });
 
             // 更新資料庫按鈕事件
             $('#updateButton').click(function() {
-                // 點擊 "更新資料庫" 按鈕時執行
-
-                // 顯示確認視窗，詢問使用者是否確定更新
                 if (!confirm("確定要更新資料庫嗎？")) {
-                    return; // 如果使用者取消，則不執行後續操作
+                    return;
                 }
 
-                disableButtons(true); // 禁用所有按鈕，防止重複操作
-                $('#output').html('<p>開始重構資料庫，這會花很久，請稍後...</p>'); // 顯示提示訊息
+                disableButtons(true);
+                $('#output').html('<p>開始重構資料庫，這會花很久，請稍後...</p>');
+                $('#progress-container').show(); // 顯示進度條
 
+                // 啟動更新流程
                 $.post('/update_database', function(data) {
-                    // 發送 POST 請求到 '/update_database'，並處理回傳資料
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
-                }).always(function() {
-                    // 無論請求成功或失敗，都執行此函式
-                    disableButtons(false); // 恢復按鈕可用
+                    if (data.status === "started") {
+                        monitorProgress(); // 開始監控進度
+                    } else {
+                        $('#output').html('<p>更新失敗: ' + data.message + '</p>');
+                        disableButtons(false);
+                        $('#progress-container').hide(); // 隱藏進度條
+                    }
+                }).fail(function() {
+                    $('#output').html('<p>更新請求失敗</p>');
+                    disableButtons(false);
+                    $('#progress-container').hide(); // 隱藏進度條
                 });
             });
 
             // 刪除資料庫按鈕事件
             $('#deleteButton').click(function() {
-                // 點擊 "刪除資料庫" 按鈕時執行
-
-                // 顯示確認視窗，詢問使用者是否確定刪除
                 if (!confirm("確定要刪除資料庫嗎？此動作無法復原！")) {
-                    return; // 如果使用者取消，則不執行後續操作
+                    return;
                 }
 
-                disableButtons(true); // 禁用所有按鈕，防止重複操作
-                $('#output').html('<p>正在刪除資料庫，請稍後...</p>'); // 顯示提示訊息
+                disableButtons(true);
+                $('#output').html('<p>正在檢查資料庫...</p>');
 
                 $.post('/delete_database', function(data) {
-                    // 發送 POST 請求到 '/delete_database'，並處理回傳資料
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join('')); // 將回傳訊息顯示在頁面上
+                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
                 }).always(function() {
-                    // 無論請求成功或失敗，都執行此函式
-                    disableButtons(false); // 恢復按鈕可用
+                    disableButtons(false);
                 });
             });
 
             // 按鈕啟用/禁用函式
             function disableButtons(disable) {
-                // 根據传入的 disable 參數，禁用或啟用所有按鈕
-                $('#checkButton').prop('disabled', disable); // 禁用或啟用 "檢查資料庫" 按鈕
-                $('#updateButton').prop('disabled', disable); // 禁用或啟用 "更新資料庫" 按鈕
-                $('#deleteButton').prop('disabled', disable); // 禁用或啟用 "刪除資料庫" 按鈕
+                $('#checkButton').prop('disabled', disable);
+                $('#updateButton').prop('disabled', disable);
+                $('#deleteButton').prop('disabled', disable);
+            }
+
+            // 監控更新進度
+            function monitorProgress() {
+                const progressInterval = setInterval(function() {
+                    $.get('/update_progress', function(data) {
+                        //console.log("Progress data:", data);
+
+                        if (data.hasOwnProperty('current') && data.hasOwnProperty('total')) {
+                            const progress = (data.current / data.total) * 100;
+                            $('#progress-bar').width(progress + '%');
+                            $('#progress-text').text(data.current + '/' + data.total + ' 批次');
+                        }
+
+                        // 顯示訊息
+                        if (data.messages && data.messages.length > 0) {
+                            const newMessages = data.messages.map(msg => '<p>' + msg + '</p>').join('');
+                            $('#output').html(newMessages);
+                        }
+
+                        if (!data.is_running) {
+                            clearInterval(progressInterval);
+                            $('#output').append('<p>資料庫更新作業結束。</p>');
+                            disableButtons(false);
+                            $('#progress-container').hide();
+                        }
+                    }).fail(function() {
+                        clearInterval(progressInterval);
+                        $('#output').append('<p>無法獲取更新進度</p>');
+                        disableButtons(false);
+                        $('#progress-container').hide();
+                    });
+                }, 1000); // 每 1 秒更新一次
             }
         });
     </script>

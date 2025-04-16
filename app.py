@@ -197,140 +197,192 @@ def check_database_is_null():
 
 
 
-def write_db_tables():
- 
-    try:
-        stock_codes = []  # 初始化有效股票代號列表
-
-        # 檢查從 0 到 9999 的數字
-        for i in range(0, 10000):
-            ticker = f"{i:04d}.TW"  # 格式化為四位數字並加上 .TW
-            if is_stock_code(ticker):  # 檢查是否為有效的股票代號
-                stock_codes.append(ticker)  # 若有效，則加入列表
-
-        # 將有效的股票代號存成 CSV 檔案
-        with open('valid_stock_codes.csv', 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)  # 創建 CSV 寫入器
-            writer.writerow(['Stock Code'])  # 寫入表頭
-            for code in stock_codes:  # 遍歷有效的股票代號
-                writer.writerow([code])  # 寫入每個代號
-
-        print("有效的台股股票代號已儲存到 valid_stock_codes.csv")  # 打印成功消息
-
-        # 儲存股票代號到資料庫
-        save_stock_codes_to_postgresql(stock_codes)
-
-        # 抓取並儲存每個有效股票的交易資料
-        for code in stock_codes:
-            stock_data = fetch_stock_data(code)  # 抓取股票的交易資料
-            save_stock_data_to_postgresql(stock_data, code)  # 儲存資料到 PostgreSQL
-
-    finally:
-        return True
-
-
-
-
-import requests
-import threading
-
-# 建立一個 threading.Event 物件，用來控制是否停止迴圈
-stop_event = threading.Event()
-
-def ping_localhost():
-    url = 'http://127.0.0.1:5000/check_database'
-    print("開始每10分鐘 POST 請求檢查資料庫狀態 API")
-
-    while not stop_event.is_set():
-        try:
-            # 這裡用 json 參數傳送 JSON 格式資料
-            payload = {"check": True}
-            response = requests.post(url, json=payload)
-            print(f"POST 成功，狀態碼：{response.status_code}")
-            print(f"回應內容：{response.json()}")
-        except Exception as e:
-            print(f"POST 失敗：{e}")
-
-        print("休眠10分鐘...")
-        stop_event.wait(600)
-
-
-
 if __name__ == "__main__":
     
     from flask import Flask, render_template, jsonify
     import threading
+    import time
 
-    # 建立 Flask 應用程式實例
+    # 初始化 Flask 應用
     app = Flask(__name__)
 
-    # 首頁路由，使用 GET 方法，回傳渲染後的 index.html 頁面
+    # 全局控制變數 (多線程共享)
+    stop_event = threading.Event()  # 用於控制背景任務停止
+    update_progress = {  # 進度追蹤字典
+        "current_batch": 0,         # 當前處理批次
+        "total_batches": 5,         # 總批次數 (初始值)
+        "is_running": False,        # 任務運行狀態
+        "messages": []              # 操作訊息記錄
+    }
+
+    def write_db_tables():
+        """
+        批次寫入資料庫主邏輯
+        功能分為三階段：
+        1. 驗證股票代碼有效性
+        2. 儲存有效代碼到 CSV
+        3. 保存資料到 PostgreSQL 資料庫
+        """
+        try:
+            # 初始化參數
+            total_stocks = 10000    # 台股代碼範圍 0000-9999
+            batch_size = 5          # 每批次檢查數量
+            update_progress["total_batches"] = total_stocks // batch_size  # 動態計算總批次
+            
+            stock_codes = []        # 有效代碼暫存列表
+            
+            # 批次檢查代碼有效性
+            for i in range(update_progress["total_batches"]):
+                if stop_event.is_set():  # 檢查停止標記
+                    break
+                    
+                # 更新進度狀態
+                update_progress["current_batch"] = i + 1
+                update_progress["messages"].append(f"正在處理第 {i+1} 批次")
+                
+                time.sleep(1)  # 模擬處理延遲
+                
+                # 實際處理邏輯
+                start_idx = i * batch_size
+                end_idx = start_idx + batch_size
+                
+                for num in range(start_idx, end_idx):
+                    ticker = f"{num:04d}.TW"  # 格式化台股代碼
+                    if is_stock_code(ticker):  # 需實作的驗證函式
+                        stock_codes.append(ticker)
+                
+                update_progress["messages"].append(f"第 {i+1} 批次完成，已處理 {batch_size} 筆")
+
+            # 處理未整除的最終批次
+            remaining = total_stocks % batch_size
+            if remaining > 0 and not stop_event.is_set():
+                update_progress["messages"].append("正在處理最終批次")
+                start_idx = update_progress["total_batches"] * batch_size
+                for num in range(start_idx, start_idx + remaining):
+                    ticker = f"{num:04d}.TW"
+                    if is_stock_code(ticker):
+                        stock_codes.append(ticker)
+                update_progress["messages"].append("最終批次完成")
+
+            # 儲存階段
+            if not stop_event.is_set():
+                # CSV 儲存
+                update_progress["messages"].append("正在儲存 CSV 檔案")
+                with open('valid_stock_codes.csv', 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow(['Stock Code'])
+                    writer.writerows([[code] for code in stock_codes])
+                update_progress["messages"].append("CSV 儲存完成")
+
+                # 資料庫儲存
+                update_progress["messages"].append("正在儲存到資料庫")
+                save_stock_codes_to_postgresql(stock_codes)  # 需實作的資料庫函式
+                update_progress["messages"].append("代碼儲存完成")
+
+                # 歷史數據抓取
+                update_progress["messages"].append("開始抓取歷史資料")
+                for idx, code in enumerate(stock_codes, 1):
+                    if stop_event.is_set():
+                        break
+                        
+                    update_progress["messages"].append(f"正在處理 {code} ({idx}/{len(stock_codes)})")
+                    stock_data = fetch_stock_data(code)  # 需實作的數據抓取函式
+                    save_stock_data_to_postgresql(stock_data, code)  # 需實作的資料庫函式
+                    time.sleep(0.5)  # 避免 API 請求過快
+
+        except Exception as e:
+            update_progress["messages"].append(f"發生錯誤: {str(e)}")
+            return False
+        finally:
+            return True  # 無論成功失敗都返回 True 以完成 Flask 響應
+
+    def run_update_process():
+        """
+        更新主流程控制器
+        執行順序：
+        1. 刪除舊資料表
+        2. 批次寫入新資料
+        3. 錯誤處理與狀態更新
+        """
+        update_progress["is_running"] = True
+        update_progress["messages"].append("開始資料庫更新流程")
+        
+        try:
+            # 資料清理階段
+            drop_db_tables.drop_all_tables()  # 需實作的資料表刪除函式
+            update_progress["messages"].append("舊資料刪除完成")
+
+            # 資料寫入階段
+            write_db_tables()
+
+            update_progress["messages"].append("資料庫更新完成")
+        except Exception as e:
+            update_progress["messages"].append(f"更新失敗: {str(e)}")
+        finally:
+            update_progress["is_running"] = False
+
+    # 路由定義
     @app.route('/')
     def home():
+        """主頁面路由"""
         return render_template('index.html')
 
-    # 檢查資料庫狀態的 API，限定只接受 POST 請求
     @app.route('/check_database', methods=['POST'])
     def check_database():
-        output = []  # 建立訊息列表，用來存放回傳給前端的訊息
-        output.append("正在檢查資料庫，請稍後...")  # 加入提示訊息
-
-        # 呼叫自訂函式判斷資料庫是否為空
-        if check_database_is_null():
+        """資料庫狀態檢查 API"""
+        output = ["正在檢查資料庫..."]
+        if check_database_is_null():  # 需實作的檢查函式
             output.append("資料庫是空的。")
-            # 回傳 JSON 格式的訊息給前端
-            return jsonify({"messages": output})
+        elif monthly_inspection():    # 需實作的檢查函式
+            _, days = monthly_inspection()
+            output.extend([f"距離上次更新: {days}天", "檢查完成"])
+        return jsonify({"messages": output})
 
-        # 呼叫自訂函式判斷是否超過一個月需要更新
-        if monthly_inspection():
-            output.append("距離上次更新時間:")
-            # monthly_inspection() 回傳兩個值，第二個是天數差
-            _, difference_days = monthly_inspection()
-            output.append(str(difference_days))  # 加入天數差訊息
-            output.append("資料庫狀態檢查完成。")
-            return jsonify({"messages": output})
-
-    # 更新資料庫的 API，限定只接受 POST 請求
     @app.route('/update_database', methods=['POST'])
     def update_database():
-        output = []  # 建立訊息列表
-        output.append("開始重構資料庫，這會花很久，請稍後...")  # 提示開始更新
-
-        # 呼叫自訂物件方法刪除舊資料
-        drop_db_tables.drop_all_tables()
-        output.append("舊資料刪除完成。")
-
-        # 啟動 ping_localhost 函式的背景執行緒，持續 ping 本地 API 保持活躍
-        thread = threading.Thread(target=ping_localhost)
+        """啟動背景更新任務 API"""
+        if update_progress["is_running"]:
+            return jsonify({"status": "error", "message": "已有更新任務進行中"})
+        
+        # 狀態初始化
+        stop_event.clear()
+        update_progress.update({
+            "current_batch": 0,
+            "is_running": True,
+            "messages": []
+        })
+        
+        # 啟動背景執行緒
+        thread = threading.Thread(target=run_update_process)
         thread.start()
+        
+        return jsonify({"status": "started", "message": "批次更新已啟動"})
 
-        # 呼叫自訂函式寫入新資料
-        write_db_tables()
+    @app.route('/update_progress', methods=['GET'])
+    def get_update_progress():
+        """進度查詢 API"""
+        return jsonify({
+            "current": update_progress["current_batch"],
+            "total": update_progress["total_batches"],
+            "is_running": update_progress["is_running"],
+            "messages": update_progress["messages"]
+        })
 
-        # 寫入完成後，設定事件停止 ping
+    @app.route('/stop_update', methods=['POST'])
+    def stop_update():
+        """停止更新任務 API"""
         stop_event.set()
+        return jsonify({"status": "stopped", "message": "已發送停止信號"})
 
-        output.append("已寫入新資料完成。")
-        output.append("資料庫更新作業結束。")
-
-        # 回傳 JSON 格式的訊息給前端
-        return jsonify({"messages": output})
-
-    # 刪除資料庫的 API，限定只接受 POST 請求
     @app.route('/delete_database', methods=['POST'])
     def delete_database():
-        output = []  # 建立訊息列表
-        output.append("正在刪除資料庫，請稍後...")  # 提示開始刪除
-
-        # 呼叫自訂物件方法刪除所有資料表
+        """資料庫刪除 API"""
         drop_db_tables.drop_all_tables()
-        output.append("資料庫已成功刪除。")
+        return jsonify({"messages": ["資料庫已刪除"]})
 
-        # 回傳 JSON 格式的訊息給前端
-        return jsonify({"messages": output})
-
-    # 啟動 Flask 應用程式，監聽所有 IP，使用 5000 埠    
-    app.run(host='0.0.0.0', port=5000)
+    # 主程式入口
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=5000, threaded=True)
 
     
 
