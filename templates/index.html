@@ -1,128 +1,187 @@
 <!DOCTYPE html>
+<!-- 文件類型宣告 -->
 <html lang="zh-Hant">
+<!-- 根元素，指定正體中文語系 -->
 <head>
-    <meta charset="UTF-8" />
+    <!-- 文件頭部開始 -->
+    <meta charset="UTF-8">
+    <!-- 設定字符編碼為 UTF-8 -->
     <title>資料庫管理</title>
+    <!-- 頁面標題 -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- 引入 jQuery 3.6.0 版 CDN -->
+    <style>
+        body {              /* CSS 樣式表開始 */ 
+            /* 優先使用 Arial 字體，若用戶端無 Arial，則使用系統預設 sans-serif 無襯線字體族 */
+            font-family: Arial, sans-serif; 
+            margin: 20px;   /* 四周均設置 20px 等距邊距 */
+        }
+        /* 設定全域字體和邊距 */
+        button {                 /* 按鈕基礎樣式 */        
+            padding: 10px 15px;  /* 控制按鈕內部的填充空間 */
+            margin: 5px;
+            cursor: pointer;     /* 鼠標懸停樣式，懸停時顯示「手指」圖標 */
+        }
+        
+        #progress-container {         /* 進度條容器樣式 */
+            margin-top: 20px;         /* 單一方向設置：僅影響頂部邊距 */
+            border: 1px solid #ddd; /* 容器邊框樣式，粗細：1像素，樣式：實線 (solid)，顏色：淺灰色 (#dddddd) */
+            padding: 15px;
+        }
+        
+        #progress-bar {            /* 進度條動態部分樣式 */
+            height: 20px;          /* 設定進度條高度 */
+            background: #4CAF50; /* 進度條填充顏色 */
+            width: 0%;             /* 初始進度值 */
+        }
+        
+    </style>
 </head>
 <body>
+    <!-- 頁面主體開始 -->
     <h1>資料庫管理</h1>
+    <!-- 主標題 -->
 
-    <!-- 檢查資料庫按鈕 -->
+    <label for="newInput">股票範圍:</label>
+    <!-- 輸入框標籤 -->
+    <input type="text" id="newInput" placeholder="例如: 0-20" value="0-20"><br><br>
+    <!-- 文字輸入框，預設值 0-20 -->
+
     <button id="checkButton">檢查資料庫</button>
-
-    <!-- 更新資料庫按鈕 -->
+    <!-- 檢查按鈕 -->
     <button id="updateButton">更新資料庫</button>
-
-    <!-- 刪除資料庫按鈕（可選） -->
+    <!-- 更新按鈕 -->
+    <button id="stopButton">停止更新</button>
+    <!-- 停止按鈕 -->
     <button id="deleteButton">刪除資料庫</button>
+    <!-- 刪除按鈕 -->
 
-    <!-- 進度條 -->
     <div id="progress-container" style="display: none;">
+        <!-- style="display: none;"：確保進度條只在需要時顯示 -->
+        <!-- 進度條容器，預設隱藏 -->
         <h3>更新進度</h3>
-        <div style="width: 80%; height: 20px; background: #f0f0f0;">
-            <div id="progress-bar" style="height: 100%; width: 0%; background: #4CAF50;"></div>
+        <!-- 進度標題 -->
+        <div style="background: #f0f0f0;">
+            <!-- 進度條背景 -->
+            <div id="progress-bar"></div>
+            <!-- 動態進度條 -->
         </div>
-        <p id="progress-text">0/5 批次</p>
+        <p id="progress-text">0/0 批次</p>
+        <!-- 批次計數文字 -->
     </div>
 
-    <!-- 訊息輸出區 -->
     <div id="output"></div>
+    <!-- 訊息輸出容器 -->
 
     <script>
+        // JavaScript 主邏輯開始
+        // DOM（Document Object Model，文件物件模型），讓 JavaScript 等程式語言能動態操作網頁內容
         $(document).ready(function() {
-            // 檢查資料庫按鈕事件
-            $('#checkButton').click(function() {
-                disableButtons(true);
-                $('#output').html('<p>正在檢查資料庫，請稍後...</p>');
+            // 等待 DOM 完全載入後執行
 
-                $.post('/check_database', function(data) {
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
-                }).always(function() {
-                    disableButtons(false);
-                });
+            // 按鈕狀態控制函式
+            function disableButtons(disable) {
+                $('#checkButton, #updateButton, #deleteButton').prop('disabled', disable);
+                // 禁用/啟用指定按鈕群組
+            }
+
+            // 檢查資料庫按鈕事件
+             $('#checkButton').click(function() { // 為 ID 為 checkButton 的按鈕綁定點擊事件，當使用者點擊按鈕時，執行函數內的程式碼
+                disableButtons(true); // 禁用按鈕
+                $('#output').html('<p>正在檢查資料庫...</p>'); // 顯示初始訊息
+                
+                // 發送 POST 請求到 /check_database
+                $.post('/check_database')
+                    .done(function(data) { //如果後端有成功響應會回傳data，data為後端傳回來的資料
+                        // 成功回調：將訊息陣列轉換為 HTML
+                        // data.messages取出後端的資料，map把每個資料都加上<p>資料</p>，join把它們串起來
+                        // html()把串好的資料插入到 #output 元素中<div id="output">串號的資料</div>
+                        // 例如['正在檢查資料庫...', '最後加入股票代號: 0061.TW', '最後資料日期: 2025-04-18', '距今天數: 3 天', '檢查完成']
+                        // 變成<div id="output"><p>正在檢查資料庫...</p><p>最後加入股票代號: 0061.TW</p>......</div>
+                        $('#output').html(data.messages.map(msg => `<p>${msg}</p>`).join(''));
+                    })
+                    .always(() => disableButtons(false)); // 無論成功失敗都啟用按鈕
             });
 
             // 更新資料庫按鈕事件
             $('#updateButton').click(function() {
-                if (!confirm("確定要更新資料庫嗎？")) {
-                    return;
-                }
+                if(!confirm("確定要更新資料庫嗎？")) return; // 確認對話框
+                
+                disableButtons(true); // 禁用按鈕
+                $('#output').html('<p>開始資料庫更新流程</p>');
+                $('#progress-container').show(); // 立即顯示 ID 為 progress-container 的元素(進度條)
 
-                disableButtons(true);
-                $('#output').html('<p>開始重構資料庫，這會花很久，請稍後...</p>');
-                $('#progress-container').show(); // 顯示進度條
-
-                // 啟動更新流程
-                $.post('/update_database', function(data) {
-                    if (data.status === "started") {
-                        monitorProgress(); // 開始監控進度
-                    } else {
-                        $('#output').html('<p>更新失敗: ' + data.message + '</p>');
-                        disableButtons(false);
+                // 發送更新請求，並取得頁面上 id 為 newInput 的輸入框的目前內容，把它當作 user_input 這個欄位的值傳遞給伺服器
+                $.post('/update_database', { user_input: $('#newInput').val() })
+                    .done(function(data) {
+                        if(data.status === "started") {
+                            monitorProgress(); // 啟動進度監控
+                        } else {
+                            $('#output').html(`<p>更新失敗: ${data.message}</p>`);
+                        }
+                    })
+                    .fail(() => {
+                        $('#output').html('<p>更新請求失敗</p>');
+                        disableButtons(false); // 啟用按鈕
                         $('#progress-container').hide(); // 隱藏進度條
-                    }
-                }).fail(function() {
-                    $('#output').html('<p>更新請求失敗</p>');
-                    disableButtons(false);
-                    $('#progress-container').hide(); // 隱藏進度條
-                });
-            });
-
-            // 刪除資料庫按鈕事件
-            $('#deleteButton').click(function() {
-                if (!confirm("確定要刪除資料庫嗎？此動作無法復原！")) {
-                    return;
-                }
-
-                disableButtons(true);
-                $('#output').html('<p>正在檢查資料庫...</p>');
-
-                $.post('/delete_database', function(data) {
-                    $('#output').html(data.messages.map(msg => '<p>' + msg + '</p>').join(''));
-                }).always(function() {
-                    disableButtons(false);
-                });
-            });
-
-            // 按鈕啟用/禁用函式
-            function disableButtons(disable) {
-                $('#checkButton').prop('disabled', disable);
-                $('#updateButton').prop('disabled', disable);
-                $('#deleteButton').prop('disabled', disable);
-            }
-
-            // 監控更新進度
-            function monitorProgress() {
-                const progressInterval = setInterval(function() {
-                    $.get('/update_progress', function(data) {
-                        //console.log("Progress data:", data);
-
-                        if (data.hasOwnProperty('current') && data.hasOwnProperty('total')) {
-                            const progress = (data.current / data.total) * 100;
-                            $('#progress-bar').width(progress + '%');
-                            $('#progress-text').text(data.current + '/' + data.total + ' 批次');
-                        }
-
-                        // 顯示訊息
-                        if (data.messages && data.messages.length > 0) {
-                            const newMessages = data.messages.map(msg => '<p>' + msg + '</p>').join('');
-                            $('#output').html(newMessages);
-                        }
-
-                        if (!data.is_running) {
-                            clearInterval(progressInterval);
-                            $('#output').append('<p>資料庫更新作業結束。</p>');
-                            disableButtons(false);
-                            $('#progress-container').hide();
-                        }
-                    }).fail(function() {
-                        clearInterval(progressInterval);
-                        $('#output').append('<p>無法獲取更新進度</p>');
-                        disableButtons(false);
-                        $('#progress-container').hide();
                     });
-                }, 1000); // 每 1 秒更新一次
+            });
+
+            // 停止按鈕事件
+            $('#stopButton').click(function() {
+                $.post('/stop_update') // 發送停止指令
+                    .done(data => $('#output').append(`<p>${data.message}</p>`))
+                    .fail(() => $('#output').append('<p>停止請求失敗</p>'));
+            });
+
+            // 刪除按鈕事件
+            $('#deleteButton').click(function() {
+                if(!confirm("確定要刪除資料庫嗎？此動作無法復原！")) return;
+                
+                disableButtons(true); // 禁用按鈕
+                $('#output').html('<p>正在刪除資料庫...</p>');
+                
+                $.post('/delete_database')
+                    .done(data => {
+                        // 把後端訊息整合後丟入output
+                        $('#output').html(data.messages.map(msg => `<p>${msg}</p>`).join(''));
+                    })
+                    .always(() => disableButtons(false)); // 無論如何啟用按鈕
+            });
+
+            // 進度監控函式
+            function monitorProgress() {
+                // setInterval(() => {  要執行的事  }, 1000); >> 意即每1000毫秒（1秒）執行一次要執行的事
+                const interval = setInterval(() => { //宣告一個變數interval來裝setInterval()回傳的編號，用來停止這個定時器
+                    // 每秒輪詢進度
+                    $.get('/update_progress') //發送一個 HTTP GET 請求，從伺服器取得資料，而且不會讓網頁重新整理
+                        .done(data => {
+                            // 更新進度條
+                            if(data.current && data.total) { // 確認 data 對象中存在 current (當前進度) 和 total (總量) 兩個屬性
+                                const percent = (data.current/data.total)*100; // 用percent來接進度的百分比 = (已完成量 / 總量) * 100
+                                $('#progress-bar').width(`${percent}%`); // 使用.width() 方法動態調整進度條的 CSS width 屬性，讓綠色變寬
+                                $('#progress-text').text(`${data.current}/${data.total} 批次`); // 顯示當前批次/總批次
+                            }
+                            
+                            // 更新訊息區
+                            if(data.messages) {
+                                // 把返回訊息整理後丟入output以顯示在網頁上
+                                $('#output').html(data.messages.map(msg => `<p>${msg}</p>`).join(''));
+                            }
+
+                            // 完成後清理
+                            if(!data.is_running) { // 當is_running不再是True就代表任務完成
+                                clearInterval(interval); // 把interval填入clearInterval()用來停止計時器
+                                disableButtons(false); // 啟用按鈕
+                                $('#progress-container').hide(); //再次隱藏進度條
+                            }
+                        })
+                        .fail(() => {
+                            clearInterval(interval); // 把interval填入clearInterval()用來停止計時器
+                            $('#output').append('<p>無法獲取進度</p>');
+                            disableButtons(false); // 啟用按鈕
+                        });
+                }, 1000); // 間隔 1 秒
             }
         });
     </script>
